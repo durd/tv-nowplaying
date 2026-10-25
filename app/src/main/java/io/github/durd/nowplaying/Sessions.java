@@ -24,33 +24,50 @@ final class Sessions {
     private Sessions() {
     }
 
-    /** The playing session, else a paused one, else idle. Null when dumpsys could not be read. */
+    /** The playing session, else a buffering one, else a paused one, else idle. Null if dumpsys failed. */
     static NowPlayingListener.Report read() {
         List<Session> all = parse();
         if (all == null) return null;
         Session pick = null;
         for (Session s : all) {
-            if (s.state == 3) {
-                pick = s;
-                break;
-            }
-            if (s.state == 2 && pick == null) pick = s;
+            if (rank(s.state) > (pick == null ? 0 : rank(pick.state))) pick = s;
         }
         NowPlayingListener.Report r = new NowPlayingListener.Report();
         if (pick == null) {
             r.state = "idle";
             return r;
         }
-        r.state = pick.state == 3 ? "playing" : "paused";
+        r.state = reported(pick.state);
         r.app = pick.pkg;
         r.title = pick.title;
         r.artist = pick.artist;
         if (pick.positionMs >= 0) {
-            // The app last set its position at `updated` (elapsedRealtime); a playing one has moved on since.
-            long moved = pick.state == 3 ? (long) ((SystemClock.elapsedRealtime() - pick.updated) * pick.speed) : 0;
-            r.positionMs = pick.positionMs + moved;
+            // The app last set its position at `updated` (elapsedRealtime); a playing one has moved on since,
+            // at its speed (negative while rewinding).
+            long moved = "playing".equals(r.state)
+                    ? (long) ((SystemClock.elapsedRealtime() - pick.updated) * pick.speed) : 0;
+            r.positionMs = Math.max(0, pick.positionMs + moved);
         }
         return r;
+    }
+
+    /**
+     * Home Assistant has no state for fast forwarding or rewinding (4, 5): they report as playing. Buffering
+     * (6), connecting to a stream (8) and skipping to another item (9, 10, 11) report as buffering, so a stall
+     * keeps its app and title. None, stopped and error (0, 1, 7) are left out: idle.
+     */
+    private static String reported(int state) {
+        switch (state) {
+            case 3: case 4: case 5: return "playing";
+            case 6: case 8: case 9: case 10: case 11: return "buffering";
+            case 2: return "paused";
+            default: return null;
+        }
+    }
+
+    private static int rank(int state) {
+        String s = reported(state);
+        return s == null ? 0 : s.equals("playing") ? 3 : s.equals("buffering") ? 2 : 1;
     }
 
     private static List<Session> parse() {

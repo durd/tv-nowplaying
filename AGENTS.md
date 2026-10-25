@@ -19,9 +19,9 @@ support for other sets that haven't been tested.
 
 ## The contract between the two parts
 
-The app POSTs JSON to `/api/webhook/<id>`: `state` (playing, paused, idle, on, off), `app`, `app_name`,
-`title`, `artist`, `position` (seconds), `position_updated_at` (ISO 8601, UTC), `version`. Fields may be
-null. Change both sides together, and keep the integration tolerant of reports from older app versions.
+The app POSTs JSON to `/api/webhook/<id>`: `state` (playing, buffering, paused, idle, on, off), `app`,
+`app_name`, `title`, `artist`, `position` (seconds), `position_updated_at` (ISO 8601, UTC), `version`. Fields
+may be null. Change both sides together, and keep the integration tolerant of reports from older app versions.
 
 The app's settings arrive as a broadcast to `ConfigReceiver` (`--es webhook_id`, `--es ha_url`), guarded by
 `android.permission.DUMP` so only ADB's shell can send it. Never log the webhook id.

@@ -128,12 +128,14 @@ public class NowPlayingListener extends NotificationListenerService {
     }
 
     /**
-     * A playing app first, then an HDMI source on screen, then a paused app (one left paused in the
-     * background should not outrank what is on screen), then idle.
+     * A playing or buffering app first, then an HDMI source on screen, then a paused app (one left paused
+     * in the background should not outrank what is on screen), then idle.
      */
     private Report read() {
         Report session = Sessions.read();
-        if (session == null || "playing".equals(session.state)) return session;
+        if (session == null || "playing".equals(session.state) || "buffering".equals(session.state)) {
+            return session;
+        }
         Report hdmi = Hdmi.read(this);
         return hdmi != null ? hdmi : session;
     }
@@ -175,7 +177,7 @@ public class NowPlayingListener extends NotificationListenerService {
 
     /** What is sent to Home Assistant. */
     static class Report {
-        String state;        // playing, paused, idle, off
+        String state;        // playing, buffering, paused, idle, on, off
         String app;          // package name
         String appName;
         String title;

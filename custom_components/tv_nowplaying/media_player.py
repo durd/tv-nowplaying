@@ -37,6 +37,7 @@ from .const import CONF_ARTWORK_ENTITY, CONF_CONTROL_ENTITY, CONF_PLEX_ENTITY, D
 
 STATES = {
     "playing": MediaPlayerState.PLAYING,
+    "buffering": MediaPlayerState.BUFFERING,
     "paused": MediaPlayerState.PAUSED,
     "idle": MediaPlayerState.IDLE,
     "on": MediaPlayerState.ON,  # an HDMI source on screen: nothing else is known about it
@@ -185,7 +186,7 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
 
     @property
     def media_position(self) -> float | None:
-        if self.state not in (MediaPlayerState.PLAYING, MediaPlayerState.PAUSED):
+        if self.state not in (MediaPlayerState.PLAYING, MediaPlayerState.BUFFERING, MediaPlayerState.PAUSED):
             return None
         return self._report.get("position")
 
