@@ -7,3 +7,9 @@ tools/venv/
 tools/adbkey/
 __pycache__/
 custom_components/tv_nowplaying/app/
+
+# Signing keys never belong here (the release key lives outside the repo)
+*.jks
+*.keystore
+signing.properties
+.DS_Store
