@@ -13,3 +13,8 @@ custom_components/tv_nowplaying/app/
 *.keystore
 signing.properties
 .DS_Store
+
+# Android Studio
+.idea/
+*.iml
+captures/
