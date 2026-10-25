@@ -1,0 +1,4 @@
+adb-shell==0.4.4
+rsa==4.9.1
+cryptography>=46.0.7
+zeroconf==0.151.5

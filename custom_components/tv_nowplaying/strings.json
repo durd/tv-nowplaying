@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a TV",
+        "description": "Build the tv-nowplaying app with this webhook id (nowplaying.webhookId in local.properties) and install it on the TV.",
+        "data": {
+          "name": "Name",
+          "webhook_id": "Webhook id",
+          "control_entity": "TV media player to control",
+          "artwork_entity": "Artwork from (optional)",
+          "plex_entity": "Plex client on this TV (optional)"
+        },
+        "data_description": {
+          "control_entity": "Power, volume, inputs and play/pause go to this entity, and the TV reads off when it does. Usually the Philips TV integration's.",
+          "artwork_entity": "Its picture is shown as artwork, e.g. the Android Debug Bridge integration's screenshot.",
+          "plex_entity": "While Plex plays on the TV, its poster and episode details are used."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "A TV with this webhook id is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TV Now Playing",
+        "description": "Webhook id: {webhook_id}",
+        "data": {
+          "control_entity": "TV media player to control",
+          "artwork_entity": "Artwork from (optional)",
+          "plex_entity": "Plex client on this TV (optional)"
+        }
+      }
+    }
+  }
+}

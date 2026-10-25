@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Granted over ADB (pm grant): lets the app read `dumpsys media_session` (which also lists sessions
+         an app never marks active, like SmartTube's, unlike getActiveSessions()) and `dumpsys tv_input`. -->
+    <uses-permission android:name="android.permission.DUMP" />
+    <!-- To show an app's name (e.g. "SmartTube") instead of its package name. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- No activity: Android TV has no UI for notification access, so it is granted over ADB
+         (cmd notification allow_listener, see install.sh). -->
+    <!-- Cleartext: Home Assistant usually serves plain HTTP on the LAN (TLS, if any, on a reverse proxy). -->
+    <application android:label="Now Playing" android:allowBackup="false" android:usesCleartextTraffic="true">
+        <service
+            android:name=".NowPlayingListener"
+            android:exported="true"
+            android:label="Now Playing"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
