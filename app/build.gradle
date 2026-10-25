@@ -1,11 +1,29 @@
+import groovy.json.JsonSlurper
+
 plugins {
     id 'com.android.application'
 }
 
-// Settings live in the gitignored local.properties: the webhook id, optionally the Home Assistant URL.
+// One version for the app and the Home Assistant integration that installs it: the integration's.
+def version = new JsonSlurper().parse(rootProject.file('custom_components/tv_nowplaying/manifest.json')).version
+def (major, minor, patch) = version.tokenize('.').collect { it as int }
+
+// Release signing: the RELEASE_* environment (CI), else release.signing in the gitignored
+// local.properties, naming a properties file with release.storeFile, storePassword, keyAlias and
+// keyPassword. Without either, the debug key: fine for a local build, but the TV then refuses to
+// update it with a release build (or the other way round) until the app is uninstalled.
 def local = new Properties()
 def localFile = rootProject.file('local.properties')
 if (localFile.exists()) localFile.withInputStream { local.load(it) }
+def signing = new Properties()
+if (System.getenv('RELEASE_KEYSTORE')) {
+    signing['release.storeFile'] = System.getenv('RELEASE_KEYSTORE')
+    signing['release.storePassword'] = System.getenv('RELEASE_KEYSTORE_PASSWORD')
+    signing['release.keyAlias'] = System.getenv('RELEASE_KEY_ALIAS')
+    signing['release.keyPassword'] = System.getenv('RELEASE_KEY_PASSWORD')
+} else if (local['release.signing']) {
+    file(local['release.signing']).withInputStream { signing.load(it) }
+}
 
 android {
     namespace 'io.github.durd.nowplaying'
@@ -16,23 +34,26 @@ android {
         // The TV is Android 11 (SDK 30).
         minSdk 30
         targetSdk 34
-        versionCode 1
-        versionName '0.1'
-        buildConfigField 'String', 'WEBHOOK_ID', "\"${local.getProperty('nowplaying.webhookId', '')}\""
-        // Empty: find Home Assistant over mDNS. Set it (http://host:port) only to skip discovery.
-        buildConfigField 'String', 'HA_URL', "\"${local.getProperty('nowplaying.haUrl', '')}\""
+        versionCode major * 10000 + minor * 100 + patch
+        versionName version
     }
 
-    buildFeatures {
-        buildConfig true
+    signingConfigs {
+        if (signing['release.storeFile']) {
+            release {
+                storeFile file(signing['release.storeFile'])
+                storePassword signing['release.storePassword']
+                keyAlias signing['release.keyAlias']
+                keyPassword signing['release.keyPassword']
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Sideloaded over ADB, never published: sign with the debug key, as the launcher does.
-            signingConfig signingConfigs.debug
+            signingConfig signing['release.storeFile'] ? signingConfigs.release : signingConfigs.debug
         }
     }
 

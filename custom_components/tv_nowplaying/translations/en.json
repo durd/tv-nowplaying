@@ -3,18 +3,20 @@
     "step": {
       "user": {
         "title": "Add a TV",
-        "description": "Build the tv-nowplaying app with this webhook id (nowplaying.webhookId in local.properties) and install it on the TV.",
+        "description": "Pick the TV's entities. With the Android Debug Bridge entity set, the app is installed on the TV from the \"App\" update entity afterwards.",
         "data": {
           "name": "Name",
           "webhook_id": "Webhook id",
           "control_entity": "TV media player to control",
           "artwork_entity": "Artwork from (optional)",
-          "plex_entity": "Plex client on this TV (optional)"
+          "plex_entity": "Plex client on this TV (optional)",
+          "adb_entity": "Android Debug Bridge entity (optional)"
         },
         "data_description": {
           "control_entity": "Power, volume, inputs and play/pause go to this entity, and the TV reads off when it does. Usually the Philips TV integration's.",
           "artwork_entity": "Its picture is shown as artwork, e.g. the Android Debug Bridge integration's screenshot.",
-          "plex_entity": "While Plex plays on the TV, its poster and episode details are used."
+          "plex_entity": "While Plex plays on the TV, its poster and episode details are used.",
+          "adb_entity": "Used to install and update the app on the TV. The TV must have accepted this integration's ADB key."
         }
       }
     },
@@ -30,8 +32,16 @@
         "data": {
           "control_entity": "TV media player to control",
           "artwork_entity": "Artwork from (optional)",
-          "plex_entity": "Plex client on this TV (optional)"
+          "plex_entity": "Plex client on this TV (optional)",
+          "adb_entity": "Android Debug Bridge entity (optional)"
         }
+      }
+    }
+  },
+  "entity": {
+    "update": {
+      "app": {
+        "name": "App"
       }
     }
   }

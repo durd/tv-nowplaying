@@ -6,3 +6,4 @@ local.properties
 tools/venv/
 tools/adbkey/
 __pycache__/
+custom_components/tv_nowplaying/app/

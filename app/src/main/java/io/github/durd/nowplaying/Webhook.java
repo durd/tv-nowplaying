@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * POSTs reports to Home Assistant's webhook endpoint. HA is found over mDNS (_home-assistant._tcp) and
  * reached at the address and port it advertises rather than its internal_url, which may be a reverse proxy.
- * BuildConfig.HA_URL, when set, skips discovery.
+ * The webhook id, and optionally a Home Assistant URL that skips discovery, come from ConfigReceiver.
  */
 final class Webhook {
     private static final String SERVICE = "_home-assistant._tcp";
@@ -35,7 +35,12 @@ final class Webhook {
 
     /** Finds Home Assistant if it is not known yet. Blocks for up to DISCOVER_S; call off the main thread. */
     boolean connect() {
-        if (base == null) base = BuildConfig.HA_URL.isEmpty() ? discover() : BuildConfig.HA_URL;
+        if (webhookId().isEmpty()) {
+            Log.w(NowPlayingListener.TAG, "no webhook id yet; see ConfigReceiver");
+            return false;
+        }
+        String url = ConfigReceiver.prefs(context).getString(ConfigReceiver.HA_URL, "");
+        if (base == null) base = url.isEmpty() ? discover() : url;
         return base != null;
     }
 
@@ -44,8 +49,8 @@ final class Webhook {
         if (base == null) return false;
         HttpURLConnection c = null;
         try {
-            byte[] body = json(r).toString().getBytes(StandardCharsets.UTF_8);
-            c = (HttpURLConnection) new URL(base + "/api/webhook/" + BuildConfig.WEBHOOK_ID).openConnection();
+            byte[] body = json(r, version()).toString().getBytes(StandardCharsets.UTF_8);
+            c = (HttpURLConnection) new URL(base + "/api/webhook/" + webhookId()).openConnection();
             c.setConnectTimeout(5000);
             c.setReadTimeout(5000);
             c.setDoOutput(true);
@@ -67,8 +72,22 @@ final class Webhook {
         return false;
     }
 
-    private static JSONObject json(NowPlayingListener.Report r) throws JSONException {
+    private String webhookId() {
+        return ConfigReceiver.prefs(context).getString(ConfigReceiver.WEBHOOK_ID, "");
+    }
+
+    /** This app's version, so Home Assistant knows what is installed. */
+    private String version() {
+        try {
+            return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
+        } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+            return null;
+        }
+    }
+
+    private static JSONObject json(NowPlayingListener.Report r, String version) throws JSONException {
         JSONObject j = new JSONObject();
+        j.put("version", version == null ? JSONObject.NULL : version);
         j.put("state", r.state);
         j.put("app", r.app == null ? JSONObject.NULL : r.app);
         j.put("app_name", r.appName == null ? JSONObject.NULL : r.appName);

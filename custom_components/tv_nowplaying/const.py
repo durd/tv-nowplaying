@@ -7,10 +7,14 @@ CONF_CONTROL_ENTITY = "control_entity"
 # Optional entity whose picture is used as artwork (e.g. the Android Debug Bridge integration's
 # screenshot).
 CONF_ARTWORK_ENTITY = "artwork_entity"
+# Optional Android Debug Bridge integration entity for this TV, used to install the app.
+CONF_ADB_ENTITY = "adb_entity"
 # Optional Plex client entity for this TV: its poster and episode details while Plex is playing.
 CONF_PLEX_ENTITY = "plex_entity"
 
 PLEX_APP = "com.plexapp.android"
+APP_PACKAGE = "io.github.durd.nowplaying"
+APP_LISTENER = f"{APP_PACKAGE}/{APP_PACKAGE}.NowPlayingListener"
 
 
 def signal(entry_id: str) -> str:

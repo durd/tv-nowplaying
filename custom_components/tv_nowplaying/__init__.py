@@ -15,7 +15,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from .const import DOMAIN, signal
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.MEDIA_PLAYER]
+PLATFORMS = [Platform.MEDIA_PLAYER, Platform.UPDATE]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

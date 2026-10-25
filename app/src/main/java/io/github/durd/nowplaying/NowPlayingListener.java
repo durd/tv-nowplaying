@@ -108,6 +108,18 @@ public class NowPlayingListener extends NotificationListenerService {
         last = null;
     }
 
+    /** New settings from ConfigReceiver: find Home Assistant again and report afresh. */
+    static void reconfigure() {
+        NowPlayingListener l = owner;
+        Handler h = l == null ? null : l.handler;
+        if (h == null) return;   // not connected yet; the first poll reads the settings anyway
+        h.post(() -> {
+            l.webhook = new Webhook(l);
+            l.last = null;
+            h.post(l.poll);
+        });
+    }
+
     @Override
     public void onDestroy() {
         onListenerDisconnected();

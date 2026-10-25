@@ -1,0 +1,57 @@
+# On a v* tag: build and sign the app, and publish it with the Home Assistant integration.
+# The release carries tv-nowplaying.apk (for install.sh) and tv_nowplaying.zip, the integration with the
+# APK bundled in app/, which is what HACS installs (hacs.json: zip_release). The tag must match the
+# version in custom_components/tv_nowplaying/manifest.json, which is also the app's version.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the version
+        run: |
+          version=$(jq -r .version custom_components/tv_nowplaying/manifest.json)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, but manifest.json says $version"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build and sign the app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          export RELEASE_KEYSTORE="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RELEASE_KEYSTORE"
+          ./gradlew assembleRelease --console=plain
+          rm -f "$RELEASE_KEYSTORE"
+
+      - name: Package
+        run: |
+          mkdir -p dist custom_components/tv_nowplaying/app
+          cp app/build/outputs/apk/release/app-release.apk dist/tv-nowplaying.apk
+          cp dist/tv-nowplaying.apk custom_components/tv_nowplaying/app/tv-nowplaying.apk
+          (cd custom_components/tv_nowplaying && zip -r ../../dist/tv_nowplaying.zip . -x '__pycache__/*')
+          (cd dist && sha256sum tv-nowplaying.apk tv_nowplaying.zip > SHA256SUMS)
+          unzip -l dist/tv_nowplaying.zip
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes

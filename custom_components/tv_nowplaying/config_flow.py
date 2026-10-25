@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
 
-from .const import CONF_ARTWORK_ENTITY, CONF_CONTROL_ENTITY, CONF_PLEX_ENTITY, DOMAIN
+from .const import CONF_ADB_ENTITY, CONF_ARTWORK_ENTITY, CONF_CONTROL_ENTITY, CONF_PLEX_ENTITY, DOMAIN
 
 MEDIA_PLAYER = EntitySelector(EntitySelectorConfig(domain=MEDIA_PLAYER_DOMAIN))
 
@@ -36,6 +36,7 @@ def _entities_schema(hass: HomeAssistant, current: dict[str, Any]) -> dict:
 
     return {
         vol.Required(CONF_CONTROL_ENTITY, description=suggest(CONF_CONTROL_ENTITY, "philips_js")): MEDIA_PLAYER,
+        vol.Optional(CONF_ADB_ENTITY, description=suggest(CONF_ADB_ENTITY, "androidtv")): MEDIA_PLAYER,
         vol.Optional(CONF_ARTWORK_ENTITY, description=suggest(CONF_ARTWORK_ENTITY, "androidtv")): MEDIA_PLAYER,
         vol.Optional(CONF_PLEX_ENTITY, description=suggest(CONF_PLEX_ENTITY, "plex")): MEDIA_PLAYER,
     }
@@ -58,7 +59,8 @@ class TvNowPlayingConfigFlow(ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default="TV"): str,
-                # Prefilled with a new random id; paste the app's id instead to keep an existing install.
+                # Prefilled with a new random id. The app gets it when installed from here; for an app
+                # installed from a computer, use the same id there.
                 vol.Required(CONF_WEBHOOK_ID, default=webhook.async_generate_id()): str,
                 **_entities_schema(self.hass, {}),
             }
