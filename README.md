@@ -137,6 +137,13 @@ From a computer, run `./install.sh <webhook id>` again.
 In Home Assistant, delete the TV Now Playing integration and remove it in HACS. On the TV, uninstall the
 app (with setup B: `./tv 'pm uninstall io.github.durd.nowplaying'`), which also removes its permissions.
 
+## Also here: waking a DALI Sound Hub
+
+[`hub-wake/`](hub-wake/) is a separate workaround for the same TV: a Raspberry Pi service that turns a
+DALI Sound Hub on over HDMI-CEC when the TV turns on, because after standby the hub stops answering the
+TV properly and the TV gives up on it. It has nothing to do with the app or the integration. See
+[hub-wake/README.md](hub-wake/README.md).
+
 ## Licence
 
 MIT, see [LICENSE](LICENSE).

@@ -1,0 +1,11 @@
+[Unit]
+Description=Wake DALI Sound Hub over HDMI-CEC when the TV turns on
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/local/bin/hub-wake
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

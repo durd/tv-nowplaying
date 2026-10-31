@@ -1,0 +1,22 @@
+#!/bin/bash
+# Keep hdmi_ignore_cec_init=1 in the Pi's boot config, so the firmware doesn't
+# send <Active Source> at boot and wake the TV or switch it to the Pi's input.
+# moOde manages config.txt and may rewrite it, so this runs at boot, whenever
+# config.txt changes, and at shutdown, and puts the line back if it's gone.
+# Takes effect at the next reboot.
+set -eu
+
+CONFIG=/boot/firmware/config.txt
+LINE=hdmi_ignore_cec_init=1
+
+grep -qx "$LINE" "$CONFIG" && exit 0
+
+[ -e "$CONFIG.hub-wake.bak" ] || cp -p "$CONFIG" "$CONFIG.hub-wake.bak"
+
+if grep -qx '# General settings' "$CONFIG"; then
+    # Inside moOde's [all] block, above its "Do not alter this section" part.
+    sed -i "/^# General settings\$/a $LINE" "$CONFIG"
+else
+    printf '\n[all]\n%s\n' "$LINE" >> "$CONFIG"
+fi
+echo "added $LINE to $CONFIG (applies at next reboot)"

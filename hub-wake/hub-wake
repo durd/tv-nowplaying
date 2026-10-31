@@ -1,0 +1,54 @@
+#!/bin/bash
+# Wake the DALI Sound Hub over HDMI-CEC when the TV turns on.
+#
+# After standby the hub's HDMI module reports physical address f.f.f.f, so the
+# TV never sends it <System Audio Mode Request>. The hub still accepts a
+# <User Control Pressed> Power On from another device, so we send that from the
+# Pi whenever the TV announces itself on the bus after waking up.
+set -u
+
+DEV=/dev/cec0
+HUB=5            # CEC logical address of the audio system
+SETTLE=3         # seconds to let the TV finish its own startup polling
+RETRIES=3
+DEBOUNCE=30      # ignore repeated TV announcements within this many seconds
+
+hub_ok() {
+    # A valid physical address (e.g. 2.0.0.0) means the hub is up; f.f.f.f or
+    # no reply means it is in its broken standby state.
+    cec-ctl -d "$DEV" -t "$HUB" --give-physical-addr 2>/dev/null | grep -q 'phys-addr: [0-9]'
+}
+
+wake_hub() {
+    sleep "$SETTLE"
+    for attempt in $(seq "$RETRIES"); do
+        if hub_ok; then
+            echo "hub is on"
+            return
+        fi
+        echo "hub not on, sending Power On (attempt $attempt)"
+        cec-ctl -d "$DEV" -t "$HUB" --user-control-pressed ui-cmd=power-on-function >/dev/null 2>&1
+        cec-ctl -d "$DEV" -t "$HUB" --user-control-released >/dev/null 2>&1
+        sleep 10
+    done
+    hub_ok && echo "hub is on" || echo "hub still not on after $RETRIES attempts"
+}
+
+# Register as a playback device so we have a logical address to send from.
+# We never claim active source, so the TV won't switch to this input.
+# CEC names are at most 14 characters.
+cec-ctl -d "$DEV" --playback --osd-name "$(hostname | cut -c1-14)" >/dev/null
+
+last=0
+stdbuf -oL cec-ctl -d "$DEV" --monitor 2>&1 | while read -r line; do
+    case "$line" in
+        "Received from TV to all"*REPORT_PHYSICAL_ADDR*|"Received from TV to all"*REQUEST_ACTIVE_SOURCE*)
+            now=$(date +%s)
+            if (( now - last > DEBOUNCE )); then
+                last=$now
+                echo "TV announced itself, checking hub"
+                wake_hub &
+            fi
+            ;;
+    esac
+done

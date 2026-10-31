@@ -14,6 +14,10 @@ Two parts that ship together (see README.md for what they do and why):
 - `tools/tv.py`, `./tv`, `install.sh`: ADB over TCP from a computer, via Python `adb_shell` (never the
   `adb` binary: its own key makes the TV ask "Allow USB debugging?" again).
 
+Separately, `hub-wake/` holds a Raspberry Pi systemd service (bash and `cec-ctl`) that wakes a DALI
+Sound Hub over HDMI-CEC when the TV turns on. It shares nothing with the two parts above and isn't in
+the release; its README covers installing and testing it on a Pi.
+
 Built for and tested on one TV, a Philips 65OLED706 (Android TV 11). Keep that framing: no claims of
 support for other sets that haven't been tested.
 
