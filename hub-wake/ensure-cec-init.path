@@ -1,0 +1,9 @@
+[Unit]
+Description=Re-check hdmi_ignore_cec_init whenever the Pi boot config changes
+
+[Path]
+PathChanged=/boot/firmware/config.txt
+Unit=ensure-cec-init.service
+
+[Install]
+WantedBy=multi-user.target

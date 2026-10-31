@@ -1,0 +1,13 @@
+[Unit]
+Description=Re-check hdmi_ignore_cec_init before shutdown or reboot
+# Stopped before /boot/firmware is unmounted, so the check runs while it's still writable.
+RequiresMountsFor=/boot/firmware
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/local/bin/ensure-cec-init
+
+[Install]
+WantedBy=multi-user.target
