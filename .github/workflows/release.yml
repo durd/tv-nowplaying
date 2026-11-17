@@ -1,21 +1,28 @@
-# On a v* tag: build and sign the app, and publish it with the Home Assistant integration.
+# On a v* tag: build the app, sign it, and publish it with the Home Assistant integration.
 # The release carries tv-nowplaying.apk (for install.sh) and tv_nowplaying.zip, the integration with the
 # APK bundled in app/, which is what HACS installs (hacs.json: zip_release). The tag must match the
 # version in custom_components/tv_nowplaying/manifest.json, which is also the app's version.
+#
+# Two jobs, so the signing key never meets the build: `build` runs Gradle (and every plugin it downloads)
+# with no secrets and uploads an unsigned APK; `release` runs in the protected `release` environment,
+# checks out nothing, and only signs, verifies and publishes what `build` produced.
 name: Release
 
 on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check the tag matches the version
         run: |
@@ -25,33 +32,143 @@ jobs:
             exit 1
           fi
 
+      # gradlew runs gradle-wrapper.jar, which then downloads Gradle (checked against
+      # distributionSha256Sum). Check the jar itself against the checksum Gradle publishes for it.
+      - name: Check the Gradle wrapper
+        run: |
+          gradle=$(sed -n 's/^distributionUrl=.*\/gradle-\(.*\)-\(bin\|all\)\.zip$/\1/p' \
+            gradle/wrapper/gradle-wrapper.properties)
+          if [ -z "$gradle" ]; then
+            echo "::error::no Gradle version in gradle-wrapper.properties"
+            exit 1
+          fi
+          expected=$(curl -fsSL "https://services.gradle.org/distributions/gradle-$gradle-wrapper.jar.sha256")
+          actual=$(sha256sum gradle/wrapper/gradle-wrapper.jar | cut -d' ' -f1)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::gradle-wrapper.jar ($actual) is not Gradle $gradle's ($expected)"
+            exit 1
+          fi
+          echo "gradle-wrapper.jar is Gradle $gradle's"
+
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880  # v6.3.0
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Build and sign the app
+      # Dependencies are checked against gradle/verification-metadata.xml.
+      - name: Build the app, unsigned
+        env:
+          RELEASE_UNSIGNED: "true"
+        run: ./gradlew assembleRelease --console=plain
+
+      - name: Stage the integration
+        run: |
+          mkdir -p "$RUNNER_TEMP/integration"
+          cp -R custom_components/tv_nowplaying/. "$RUNNER_TEMP/integration/"
+          rm -rf "$RUNNER_TEMP/integration/__pycache__" "$RUNNER_TEMP/integration/app"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: apk-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: integration
+          path: ${{ runner.temp }}/integration/
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    # The signing secrets and RELEASE_CERT_SHA256 live in this environment, which needs approval.
+    environment: release
+    permissions:
+      contents: write
+    env:
+      # The runner image's Android SDK; 34.0.0 is the version AGP 8.5.2 itself uses.
+      BUILD_TOOLS: /usr/local/lib/android/sdk/build-tools/34.0.0
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: apk-unsigned
+          path: unsigned
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: integration
+          path: integration
+
+      - name: Check the build tools
+        run: |
+          for tool in zipalign apksigner; do
+            if [ ! -x "$BUILD_TOOLS/$tool" ]; then
+              echo "::error::$BUILD_TOOLS/$tool is missing: the runner image no longer has build-tools 34.0.0"
+              exit 1
+            fi
+          done
+
+      # AGP already aligns the APK; align again only if it isn't, and always before signing.
+      - name: Sign the app
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          KS_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          export RELEASE_KEYSTORE="$RUNNER_TEMP/release.jks"
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RELEASE_KEYSTORE"
-          ./gradlew assembleRelease --console=plain
-          rm -f "$RELEASE_KEYSTORE"
+          keystore="$RUNNER_TEMP/release.jks"
+          trap 'rm -f "$keystore"' EXIT
+          echo "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+          apk=unsigned/app-release-unsigned.apk
+          if ! "$BUILD_TOOLS/zipalign" -c -p 4 "$apk"; then
+            "$BUILD_TOOLS/zipalign" -p -f 4 "$apk" "$RUNNER_TEMP/aligned.apk"
+            apk="$RUNNER_TEMP/aligned.apk"
+          fi
+          mkdir -p dist
+          # v2 only, as the Gradle-signed releases were: minSdk 30 needs no v1.
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$keystore" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+            --v1-signing-enabled false --v2-signing-enabled true \
+            --v3-signing-enabled false --v4-signing-enabled false \
+            --out dist/tv-nowplaying.apk "$apk"
+
+      # Catches a swapped or wrong keystore secret: the TV would refuse the update anyway.
+      - name: Check the signing certificate
+        env:
+          RELEASE_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
+        run: |
+          expected=$(printf '%s' "$RELEASE_CERT_SHA256" | tr -d ': ' | tr 'A-F' 'a-f')
+          if [ -z "$expected" ]; then
+            echo "::error::the release environment has no RELEASE_CERT_SHA256 variable"
+            exit 1
+          fi
+          certs=$("$BUILD_TOOLS/apksigner" verify --print-certs dist/tv-nowplaying.apk)
+          signers=$(printf '%s\n' "$certs" | grep -c 'certificate SHA-256 digest:' || true)
+          if [ "$signers" != 1 ]; then
+            echo "::error::expected one signer, found $signers"
+            exit 1
+          fi
+          actual=$(printf '%s\n' "$certs" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::signed with certificate $actual, expected $expected"
+            exit 1
+          fi
+          echo "signed with certificate $actual"
 
       - name: Package
         run: |
-          mkdir -p dist custom_components/tv_nowplaying/app
-          cp app/build/outputs/apk/release/app-release.apk dist/tv-nowplaying.apk
-          cp dist/tv-nowplaying.apk custom_components/tv_nowplaying/app/tv-nowplaying.apk
-          (cd custom_components/tv_nowplaying && zip -r ../../dist/tv_nowplaying.zip . -x '__pycache__/*')
+          mkdir -p integration/app
+          cp dist/tv-nowplaying.apk integration/app/tv-nowplaying.apk
+          (cd integration && zip -r ../dist/tv_nowplaying.zip .)
           (cd dist && sha256sum tv-nowplaying.apk tv_nowplaying.zip > SHA256SUMS)
           unzip -l dist/tv_nowplaying.zip
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes

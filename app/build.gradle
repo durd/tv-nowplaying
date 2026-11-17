@@ -8,15 +8,20 @@ plugins {
 def version = new JsonSlurper().parse(rootProject.file('custom_components/tv_nowplaying/manifest.json')).version
 def (major, minor, patch) = version.tokenize('.').collect { it as int }
 
-// Release signing: the RELEASE_* environment (CI), else release.signing in the gitignored
+// Release signing: the RELEASE_* environment, else release.signing in the gitignored
 // local.properties, naming a properties file with release.storeFile, storePassword, keyAlias and
 // keyPassword. Without either, the debug key: fine for a local build, but the TV then refuses to
 // update it with a release build (or the other way round) until the app is uninstalled.
+// RELEASE_UNSIGNED=true skips all of that and leaves the release APK unsigned: CI builds it that way
+// and signs it in a separate job, so the build (and every plugin it downloads) never sees the key.
+def unsigned = System.getenv('RELEASE_UNSIGNED') == 'true'
 def local = new Properties()
 def localFile = rootProject.file('local.properties')
 if (localFile.exists()) localFile.withInputStream { local.load(it) }
 def signing = new Properties()
-if (System.getenv('RELEASE_KEYSTORE')) {
+if (unsigned) {
+    // Leave signing empty.
+} else if (System.getenv('RELEASE_KEYSTORE')) {
     signing['release.storeFile'] = System.getenv('RELEASE_KEYSTORE')
     signing['release.storePassword'] = System.getenv('RELEASE_KEYSTORE_PASSWORD')
     signing['release.keyAlias'] = System.getenv('RELEASE_KEY_ALIAS')
@@ -53,7 +58,9 @@ android {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signing['release.storeFile'] ? signingConfigs.release : signingConfigs.debug
+            if (!unsigned) {
+                signingConfig signing['release.storeFile'] ? signingConfigs.release : signingConfigs.debug
+            }
         }
     }
 
