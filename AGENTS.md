@@ -71,6 +71,11 @@ Push a tag `vX.Y.Z` matching `manifest.json`. `.github/workflows/release.yml` pu
 
 The signing secrets live only in that environment. The signing key never goes in the repo.
 
+Workflows pin every action to a full commit SHA with the version in a comment
+(`uses: actions/checkout@<sha>  # v7.0.1`); pin any new action the same way, and prefer `run:` steps to
+third-party actions. Dependabot (`.github/dependabot.yml`) opens a weekly PR for the actions only: Gradle
+and AGP bumps are done by hand, because `gradle/verification-metadata.xml` has to be regenerated with them.
+
 ## Conventions
 
 - Match the surrounding code: comments explain why, not what. The app uses plain Java and the Android SDK
