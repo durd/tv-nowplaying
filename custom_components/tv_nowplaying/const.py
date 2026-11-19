@@ -11,6 +11,9 @@ CONF_ARTWORK_ENTITY = "artwork_entity"
 CONF_ADB_ENTITY = "adb_entity"
 # Optional Plex client entity for this TV: its poster and episode details while Plex is playing.
 CONF_PLEX_ENTITY = "plex_entity"
+# Offer volume only as up/down steps, not as a level: a sound bar on HDMI ARC/CEC keeps its own volume,
+# so a level set through the TV lands a step or two off and then jumps back when the bar reports in.
+CONF_VOLUME_STEPS_ONLY = "volume_steps_only"
 
 PLEX_APP = "com.plexapp.android"
 APP_PACKAGE = "io.github.durd.nowplaying"

@@ -53,10 +53,13 @@ work as far as they publish a media session; what they put in it varies.
 3. Settings → Devices & services → **Add integration** → **TV Now Playing**:
    - **Name**: what the TV is called, e.g. *Living Room TV*. The media player is named after it.
    - **Webhook id**: leave the random one.
-   - **TV media player to control**: the Philips TV entity.
+   - **TV media player to control**: the Philips TV entity. The ADB entity works too, for power, volume
+     and play/pause; its sources are apps, not HDMI inputs.
    - **Android Debug Bridge entity**: the TV's ADB entity. Needed for step 4.
    - **Artwork from** (optional): the same ADB entity, for screenshots as artwork.
    - **Plex client on this TV** (optional): the Plex entity for the Plex app on this TV.
+   - **Volume in steps only**: turn on for a sound bar on HDMI ARC. Its volume follows up/down steps
+     reliably, but a level set from a slider lands a step or two off and then jumps back.
 4. **Turn the TV on**, open the new device's **App** update entity and press **Install**. It takes about
    15 seconds and finishes when the app's first report arrives.
 
