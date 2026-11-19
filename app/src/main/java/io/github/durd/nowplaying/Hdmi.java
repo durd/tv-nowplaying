@@ -7,7 +7,9 @@ import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,6 +63,25 @@ final class Hdmi {
             Log.w(NowPlayingListener.TAG, "reading the TV input failed", e);
             return null;
         }
+    }
+
+    /**
+     * The HDMI ports, as {input id, label} sorted by label ("HDMI 1" first), for Home Assistant's source
+     * list. Ports only: a CEC device behind a port is a child input and opens the same port.
+     */
+    static List<String[]> inputs(Context context) {
+        List<String[]> ports = new ArrayList<>();
+        try {
+            for (TvInputInfo input : context.getSystemService(TvInputManager.class).getTvInputList()) {
+                if (input.getType() == TvInputInfo.TYPE_HDMI && input.getParentId() == null) {
+                    ports.add(new String[] {input.getId(), label(context, input)});
+                }
+            }
+        } catch (Exception e) {
+            Log.w(NowPlayingListener.TAG, "listing the TV inputs failed", e);
+        }
+        ports.sort((a, b) -> a[1].compareTo(b[1]));
+        return ports;
     }
 
     /**
