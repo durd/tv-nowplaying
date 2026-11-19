@@ -54,8 +54,9 @@ work as far as they publish a media session; what they put in it varies.
    - **Name**: what the TV is called, e.g. *Living Room TV*. The media player is named after it.
    - **Webhook id**: leave the random one.
    - **TV media player to control**: the Philips TV entity. The ADB entity works too, for power, volume
-     and play/pause; its sources are apps, not HDMI inputs.
-   - **Android Debug Bridge entity**: the TV's ADB entity. Needed for step 4.
+     and play/pause.
+   - **Android Debug Bridge entity**: the TV's ADB entity. Needed for step 4. With it, the sources are
+     the TV's HDMI ports (HDMI 1, HDMI 2, …), switched the way the TV's own source menu does it.
    - **Artwork from** (optional): the same ADB entity, for screenshots as artwork.
    - **Plex client on this TV** (optional): the Plex entity for the Plex app on this TV.
    - **Volume in steps only**: turn on for a sound bar on HDMI ARC. Its volume follows up/down steps

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import hashlib
+from urllib.parse import quote
 from typing import Any
 
 from homeassistant.components.media_player import (
@@ -30,10 +31,11 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoredExtraData, RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_ADB_ENTITY,
     CONF_ARTWORK_ENTITY,
     CONF_CONTROL_ENTITY,
     CONF_PLEX_ENTITY,
@@ -88,6 +90,9 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
         self._control: str = entry.options[CONF_CONTROL_ENTITY]
         self._artwork: str | None = entry.options.get(CONF_ARTWORK_ENTITY)
         self._plex: str | None = entry.options.get(CONF_PLEX_ENTITY)
+        self._adb: str | None = entry.options.get(CONF_ADB_ENTITY)
+        # The TV's HDMI ports, name -> input id, from the app's reports (app 0.5.0 and later).
+        self._inputs: dict[str, str] = {}
         self._forwarded = FORWARDED
         if entry.options.get(CONF_VOLUME_STEPS_ONLY):
             self._forwarded &= ~MediaPlayerEntityFeature.VOLUME_SET
@@ -100,6 +105,8 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
         if (last := await self.async_get_last_state()) is not None and last.state in STATES:
             # A stale "playing" from before a restart: the control entity's "off" still overrides it.
             self._report = {"state": last.state} | {k: last.attributes.get(a) for k, a in RESTORED.items()}
+        if (extra := await self.async_get_last_extra_data()) is not None:
+            self._inputs = extra.as_dict().get("inputs") or {}
         self.async_on_remove(async_dispatcher_connect(self.hass, signal(self._entry.entry_id), self._on_report))
         watched = [e for e in (self._control, self._artwork, self._plex) if e]
         self.async_on_remove(async_track_state_change_event(self.hass, watched, self._on_change))
@@ -107,6 +114,8 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
     @callback
     def _on_report(self, report: dict[str, Any]) -> None:
         self._report = report
+        if isinstance(inputs := report.get("inputs"), list):
+            self._inputs = {i["name"]: i["id"] for i in inputs if isinstance(i, dict) and i.get("name") and i.get("id")}
         self.async_write_ha_state()
 
     @callback
@@ -117,6 +126,14 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
 
     def _state_of(self, entity_id: str | None) -> State | None:
         return self.hass.states.get(entity_id) if entity_id else None
+
+    @property
+    def extra_restore_state_data(self) -> ExtraStoredData:
+        return RestoredExtraData({"inputs": self._inputs})
+
+    def _hdmi_sources(self) -> bool:
+        """Whether sources are the TV's HDMI ports, switched through ADB, rather than the control entity's."""
+        return bool(self._inputs and self._adb)
 
     def _control_attr(self, name: str) -> Any:
         state = self._state_of(self._control)
@@ -212,10 +229,12 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
         # An HDMI source on screen is reported as "on" with its input as the title ("HDMI 1").
         if self._report.get("state") == "on":
             return self._report.get("title")
-        return self._control_attr(ATTR_INPUT_SOURCE)
+        return None if self._hdmi_sources() else self._control_attr(ATTR_INPUT_SOURCE)
 
     @property
     def source_list(self) -> list[str] | None:
+        if self._hdmi_sources():
+            return list(self._inputs)
         return self._control_attr(ATTR_INPUT_SOURCE_LIST)
 
     @property
@@ -228,7 +247,10 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
 
     @property
     def supported_features(self) -> MediaPlayerEntityFeature:
-        return MediaPlayerEntityFeature(self._control_attr(ATTR_SUPPORTED_FEATURES) or 0) & self._forwarded
+        features = MediaPlayerEntityFeature(self._control_attr(ATTR_SUPPORTED_FEATURES) or 0) & self._forwarded
+        if self._hdmi_sources():
+            features |= MediaPlayerEntityFeature.SELECT_SOURCE
+        return features
 
     # Artwork -------------------------------------------------------------------------------------
 
@@ -289,4 +311,14 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
         await self._forward("media_previous_track")
 
     async def async_select_source(self, source: str) -> None:
+        if self._hdmi_sources() and (input_id := self._inputs.get(source)):
+            # What the TV's own source menu does: view the input's passthrough channel, opened by the TV app.
+            uri = f"content://android.media.tv/passthrough/{quote(input_id, safe='')}"
+            await self.hass.services.async_call(
+                "androidtv", "adb_command",
+                {ATTR_ENTITY_ID: self._adb,
+                 "command": f"am start -a android.intent.action.VIEW -d '{uri}' -t vnd.android.cursor.item/channel"},
+                blocking=True, context=self._context,
+            )
+            return
         await self._forward("select_source", source=source)

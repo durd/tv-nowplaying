@@ -5,6 +5,7 @@ import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -13,6 +14,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +51,7 @@ final class Webhook {
         if (base == null) return false;
         HttpURLConnection c = null;
         try {
-            byte[] body = json(r, version()).toString().getBytes(StandardCharsets.UTF_8);
+            byte[] body = json(r, version(), Hdmi.inputs(context)).toString().getBytes(StandardCharsets.UTF_8);
             c = (HttpURLConnection) new URL(base + "/api/webhook/" + webhookId()).openConnection();
             c.setConnectTimeout(5000);
             c.setReadTimeout(5000);
@@ -85,7 +87,8 @@ final class Webhook {
         }
     }
 
-    private static JSONObject json(NowPlayingListener.Report r, String version) throws JSONException {
+    private static JSONObject json(NowPlayingListener.Report r, String version, List<String[]> inputs)
+            throws JSONException {
         JSONObject j = new JSONObject();
         j.put("version", version == null ? JSONObject.NULL : version);
         j.put("state", r.state);
@@ -95,6 +98,11 @@ final class Webhook {
         j.put("artist", r.artist == null ? JSONObject.NULL : r.artist);
         j.put("position", r.positionMs < 0 ? JSONObject.NULL : r.positionMs / 1000.0);
         j.put("position_updated_at", Instant.now().toString());
+        JSONArray ports = new JSONArray();
+        for (String[] input : inputs) {
+            ports.put(new JSONObject().put("id", input[0]).put("name", input[1]));
+        }
+        j.put("inputs", ports);
         return j;
     }
 
