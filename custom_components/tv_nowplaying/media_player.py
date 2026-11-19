@@ -33,7 +33,15 @@ from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_ARTWORK_ENTITY, CONF_CONTROL_ENTITY, CONF_PLEX_ENTITY, DOMAIN, PLEX_APP, signal
+from .const import (
+    CONF_ARTWORK_ENTITY,
+    CONF_CONTROL_ENTITY,
+    CONF_PLEX_ENTITY,
+    CONF_VOLUME_STEPS_ONLY,
+    DOMAIN,
+    PLEX_APP,
+    signal,
+)
 
 STATES = {
     "playing": MediaPlayerState.PLAYING,
@@ -80,6 +88,9 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
         self._control: str = entry.options[CONF_CONTROL_ENTITY]
         self._artwork: str | None = entry.options.get(CONF_ARTWORK_ENTITY)
         self._plex: str | None = entry.options.get(CONF_PLEX_ENTITY)
+        self._forwarded = FORWARDED
+        if entry.options.get(CONF_VOLUME_STEPS_ONLY):
+            self._forwarded &= ~MediaPlayerEntityFeature.VOLUME_SET
         self._report: dict[str, Any] = {}
         self._attr_unique_id = entry.entry_id
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)}, name=entry.title)
@@ -217,7 +228,7 @@ class TvNowPlaying(MediaPlayerEntity, RestoreEntity):
 
     @property
     def supported_features(self) -> MediaPlayerEntityFeature:
-        return MediaPlayerEntityFeature(self._control_attr(ATTR_SUPPORTED_FEATURES) or 0) & FORWARDED
+        return MediaPlayerEntityFeature(self._control_attr(ATTR_SUPPORTED_FEATURES) or 0) & self._forwarded
 
     # Artwork -------------------------------------------------------------------------------------
 

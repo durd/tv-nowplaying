@@ -12,9 +12,16 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.const import CONF_NAME, CONF_WEBHOOK_ID
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.selector import EntitySelector, EntitySelectorConfig
+from homeassistant.helpers.selector import BooleanSelector, EntitySelector, EntitySelectorConfig
 
-from .const import CONF_ADB_ENTITY, CONF_ARTWORK_ENTITY, CONF_CONTROL_ENTITY, CONF_PLEX_ENTITY, DOMAIN
+from .const import (
+    CONF_ADB_ENTITY,
+    CONF_ARTWORK_ENTITY,
+    CONF_CONTROL_ENTITY,
+    CONF_PLEX_ENTITY,
+    CONF_VOLUME_STEPS_ONLY,
+    DOMAIN,
+)
 
 MEDIA_PLAYER = EntitySelector(EntitySelectorConfig(domain=MEDIA_PLAYER_DOMAIN))
 
@@ -39,6 +46,7 @@ def _entities_schema(hass: HomeAssistant, current: dict[str, Any]) -> dict:
         vol.Optional(CONF_ADB_ENTITY, description=suggest(CONF_ADB_ENTITY, "androidtv")): MEDIA_PLAYER,
         vol.Optional(CONF_ARTWORK_ENTITY, description=suggest(CONF_ARTWORK_ENTITY, "androidtv")): MEDIA_PLAYER,
         vol.Optional(CONF_PLEX_ENTITY, description=suggest(CONF_PLEX_ENTITY, "plex")): MEDIA_PLAYER,
+        vol.Optional(CONF_VOLUME_STEPS_ONLY, default=current.get(CONF_VOLUME_STEPS_ONLY, False)): BooleanSelector(),
     }
 
 
